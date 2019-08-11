@@ -1,0 +1,28 @@
+[package]
+name = "memscanner"
+version = "0.1.0"
+authors = ["Cid Garlond <cid.garlond@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+failure = "0.1.5"
+memscanner_derive = { version = "0.1.0", path = "../memscanner_derive" }
+nom = "5.0.0"
+serde = { version = "1.0", features = ["derive"] }
+json5 = "0.2.5"
+syn = "1.0"
+quote = "1.0"
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3"
+features = [
+    "handleapi",
+    "impl-default",
+    "memoryapi",
+    "processthreadsapi",
+    "psapi",
+    "winnt",
+    "winuser",
+]

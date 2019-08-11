@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "memscanner",
+    "memscanner_derive",
+    "memscanner_test",
+]
