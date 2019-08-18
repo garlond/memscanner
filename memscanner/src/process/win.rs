@@ -179,12 +179,13 @@ impl Drop for Process {
 impl MemReader for Process {
     fn read(&self, buf: &mut [u8], addr: u64, len: usize) -> usize {
         let base_addr = self.base_addr as u64;
-        let start_index = (addr - base_addr) as usize;
-        let end_index = start_index + len - 1;
-
-        if addr >= base_addr && end_index < self.base_contents.len() {
-            buf.copy_from_slice(&self.base_contents[start_index..=end_index]);
-            return len;
+        if addr >= base_addr {
+            let start_index = (addr - base_addr) as usize;
+            let end_index = start_index + len - 1;
+            if end_index < self.base_contents.len() {
+                buf.copy_from_slice(&self.base_contents[start_index..=end_index]);
+                return len;
+            }
         }
         self.read_memory(buf, addr as LPVOID, len)
     }

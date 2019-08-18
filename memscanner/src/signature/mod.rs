@@ -16,7 +16,7 @@ enum Op {
     Ptr(i32),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature {
     ops: Vec<Op>,
 }

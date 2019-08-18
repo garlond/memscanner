@@ -1,5 +1,4 @@
 extern crate proc_macro;
-
 mod context;
 
 use context::Context;
@@ -52,10 +51,12 @@ fn scannable_impl(ctx: &mut Context, ast: &syn::DeriveInput) -> Option<TokenStre
         }
     };
     let name = &ast.ident;
+    let name_str = syn::LitStr::new(&format!("{}", name), ast.ident.span());
 
     let mut offset_code = quote! {};
     let mut addr_code = quote! {};
     let mut read_code = quote! {};
+    let mut array_read_code = quote! {};
     for f in data.fields.iter() {
         let ident = f.ident.as_ref().unwrap();
 
@@ -90,6 +91,14 @@ fn scannable_impl(ctx: &mut Context, ast: &syn::DeriveInput) -> Option<TokenStre
                 .#read(#addr)
                 .ok_or(format_err!("can't read {}", #ident_str))?;
         });
+
+        // The code that reads the field's value and stores it in an
+        // element in an array.
+        array_read_code.extend(quote! {
+            obj.#ident = cached_mem
+                .#read(#offset + base_addr)
+                .ok_or(format_err!("can't read {}", #ident_str))?;
+        });
     }
 
     // Resolver and Scanner are implemented as closures so that the we can
@@ -117,6 +126,64 @@ fn scannable_impl(ctx: &mut Context, ast: &syn::DeriveInput) -> Option<TokenStre
                 };
                 Ok(Box::new(resolver))
             }
+
+            fn get_array_resolver(config: memscanner::TypeConfig)
+                -> Result<Box<memscanner::ArrayResolver<#name>>, failure::Error> {
+                use failure::format_err;
+                let array_config = config.array
+                    .as_ref()
+                    .ok_or(format_err!("Can't create resolver for Vec<{}>: no array config.", #name_str))?.clone();
+
+                #offset_code
+
+                let resolver = move |mem: &dyn memscanner::MemReader,
+                                    start_addr: u64,
+                                    end_addr: u64|
+                    -> Result<Box<memscanner::ArrayScanner<Self>>, failure::Error> {
+                    let base_addr = config
+                        .signature
+                        .resolve(mem, start_addr, end_addr)
+                        .ok_or(format_err! {"Can't resolve base address"})?;
+                    let array_config = array_config.clone();
+
+                    let scanner = move |vec: &mut Vec<#name>, mem: &dyn memscanner::MemReader|
+                        -> Result<(), failure::Error> {
+                        use std::ops::IndexMut;
+                        use memscanner::MemReader;
+                        use memscanner::test::TestMemReader;
+                        use memscanner::macro_helpers::*;
+
+                        // This requires that the type implement Default.
+                        vec.resize_with(array_config.element_count as usize,
+                            Default::default);
+
+                        let mut cached_mem = new_mem_cache(&array_config);
+
+                        for i in 0..(array_config.element_count as usize){
+                            let obj = vec.index_mut(i);
+                            let base_addr = get_array_base_addr(
+                                &array_config,
+                                base_addr,
+                                i,
+                                mem)?;
+
+                            // Pointer tables can have null entries.  Set those to the default value.
+                            if base_addr == 0x0 {
+                                *obj = Default::default();
+                                continue;
+                            }
+
+                            update_mem_cache(mem, &mut cached_mem, base_addr, array_config.element_size)
+                                .map_err(|e| format_err!("{} of {}: ", i, #name_str))?;
+
+                            #array_read_code
+                       }
+                        Ok(())
+                    };
+                    Ok(Box::new(scanner))
+                };
+                Ok(Box::new(resolver))
+            }
         }
     };
 
@@ -138,7 +205,7 @@ pub fn scannable_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
                 proc_macro::TokenStream::from(c)
             }
             None => {
-                return quote! {compile_error!("Unknown error with #[derive(Scannable)] ")}.into()
+                return quote! {compile_error!("Unknown error with #[derive(Scannable)]")}.into()
             }
         },
         Err(e) => Context::convert_to_compile_errors(e).into(),

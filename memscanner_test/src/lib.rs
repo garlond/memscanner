@@ -5,7 +5,7 @@ mod tests {
 
     use failure::{format_err, Error};
 
-    #[derive(Default, Scannable)]
+    #[derive(Debug, Default, Scannable)]
     struct TestObject {
         value1: u8,
         value2: u32,
@@ -24,11 +24,45 @@ mod tests {
         };
         r
     }
+    // This that should be emitted by the derive macro
+    fn get_array_test_mem_reader() -> TestMemReader {
+        #[rustfmt::skip]
+        let r = TestMemReader {
+            mem: vec![
+                0xff, 0xff, 0xff, 0xff, 0x00, 0x11, 0x22, 0x33, // 0x1000
+                0x04, 0x00, 0x00, 0x00, 0x44, 0x55, 0x66, 0x77, // 0x1008
+                0x28, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0x1010
+                0x20, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0x1018
+                0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, // 0x1020
+                0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, // 0x1028
+            ],
+            start_addr: 0x1000,
+        };
+        r
+    }
 
     fn get_test_type_config() -> TypeConfig {
         let mut text = "
         {
             signature: [\"asm(00112233^^^^^^^^********)\"],
+            fields: {
+                value1: 0x0,
+                value2: 0x4,
+            }
+        }"
+        .as_bytes();
+        TypeConfig::new(&mut text).unwrap()
+    }
+
+    fn get_array_test_type_config() -> TypeConfig {
+        let mut text = "
+        {
+            signature: [\"asm(00112233^^^^^^^^********)\"],
+            array: {
+                element_size: 8,
+                element_count: 2,
+                uses_pointer_table: true,
+            },
             fields: {
                 value1: 0x0,
                 value2: 0x4,
@@ -55,7 +89,7 @@ mod tests {
     }
 
     #[test]
-    fn prototype_test() -> Result<(), Error> {
+    fn object_test() -> Result<(), Error> {
         let config = get_test_type_config();
         let mem = get_test_mem_reader();
 
@@ -66,6 +100,26 @@ mod tests {
         scanner(&mut obj, &mem)?;
         assert_eq!(obj.value1, 0x88);
         assert_eq!(obj.value2, 0xffeeddcc);
+
+        Ok(())
+    }
+
+    #[test]
+    fn array_test() -> Result<(), Error> {
+        let config = get_array_test_type_config();
+        let mem = get_array_test_mem_reader();
+
+        println!("{:?}", &config);
+        let resolver = TestObject::get_array_resolver(config)?;
+        let scanner = resolver(&mem, mem.start_addr, mem.start_addr + mem.mem.len() as u64)?;
+
+        let mut obj = Vec::new();
+        scanner(&mut obj, &mem)?;
+        println!("{:?}", &obj);
+        assert_eq!(obj[0].value1, 0x88);
+        assert_eq!(obj[0].value2, 0xffeeddcc);
+        assert_eq!(obj[1].value1, 0x00);
+        assert_eq!(obj[1].value2, 0x77665544);
 
         Ok(())
     }
