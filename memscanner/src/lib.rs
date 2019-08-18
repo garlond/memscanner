@@ -69,8 +69,16 @@ pub trait MemReader {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ArrayConfig {
+    pub element_size: u64,
+    pub element_count: u64,
+    pub uses_pointer_table: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
 struct TypeConfigIntermediate {
     signature: Vec<String>,
+    array: Option<ArrayConfig>,
     fields: HashMap<String, u64>,
 }
 
@@ -78,9 +86,10 @@ struct TypeConfigIntermediate {
 /// a struct.
 #[derive(Debug)]
 pub struct TypeConfig {
-    // Implement a custom deserializer for that type which parses the strings.
+    // TODO: Implement a custom deserializer for that type which parses the strings.
     // this will avoid the need for the intermediate type above.
     pub signature: signature::Signature,
+    pub array: Option<ArrayConfig>,
     pub fields: HashMap<String, u64>,
 }
 
@@ -95,6 +104,7 @@ impl TypeConfig {
 
         Ok(TypeConfig {
             signature: sig,
+            array: inter.array,
             fields: inter.fields,
         })
     }
@@ -110,6 +120,7 @@ impl TypeConfig {
 /// Returns a `Scanner` for reading the `Scannable`
 pub type Resolver<T> = dyn Fn(&dyn MemReader, u64, u64) -> Result<Box<Scanner<T>>, Error>;
 
+pub type ArrayResolver<T> = dyn Fn(&dyn MemReader, u64, u64) -> Result<Box<ArrayScanner<T>>, Error>;
 /// A function capable of reading a `Scannable` from a `MemReader`
 ///
 /// # Arguments
@@ -117,11 +128,18 @@ pub type Resolver<T> = dyn Fn(&dyn MemReader, u64, u64) -> Result<Box<Scanner<T>
 /// * `mem_reader` - The `MemReader` to use to resolve the `Scannable`.
 pub type Scanner<T> = dyn Fn(&mut T, &dyn MemReader) -> Result<(), Error>;
 
+pub type ArrayScanner<T> = dyn Fn(&mut Vec<T>, &dyn MemReader) -> Result<(), Error>;
 /// A struct that can be scanned with `memscanner`.
 ///
 /// This is normally implemented through the `#[derive(Scannable)]` macro.
-pub trait Scannable {
+pub trait Scannable
+where
+    Self: std::marker::Sized,
+{
     /// Returns a `Resolver` capable of finding the `Scannable` described by
     /// the `config`.
     fn get_resolver(config: TypeConfig) -> Result<Box<Resolver<Self>>, Error>;
+    /// Returns a `Resolver` capable of finding the `Scannable` described by
+    /// the `config`.  This `Scannable` will read into a Vec.
+    fn get_array_resolver(config: TypeConfig) -> Result<Box<ArrayResolver<Self>>, Error>;
 }

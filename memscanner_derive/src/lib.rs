@@ -52,6 +52,7 @@ fn scannable_impl(ctx: &mut Context, ast: &syn::DeriveInput) -> Option<TokenStre
         }
     };
     let name = &ast.ident;
+    let name_str = syn::LitStr::new(&format!("{}", name), ast.ident.span());
 
     let mut offset_code = quote! {};
     let mut addr_code = quote! {};
@@ -117,6 +118,41 @@ fn scannable_impl(ctx: &mut Context, ast: &syn::DeriveInput) -> Option<TokenStre
                 };
                 Ok(Box::new(resolver))
             }
+
+            fn get_array_resolver(config: memscanner::TypeConfig) -> Result<Box<memscanner::ArrayResolver<#name>>, failure::Error> {
+                use failure::format_err;
+                let array_config = config.array.ok_or(format_err!("Can't create resolver for Vec<{}>: no array config.", #name_str))?.clone();
+                #offset_code
+
+                let resolver = move |mem: &dyn memscanner::MemReader,
+                                    start_addr: u64,
+                                    end_addr: u64|
+                    -> Result<Box<memscanner::ArrayScanner<Self>>, failure::Error> {
+                    let base_addr = config
+                        .signature
+                        .resolve(mem, start_addr, end_addr)
+                        .ok_or(format_err! {"Can't resolve base address"})?;
+                    //let array_config = array_config.clone();
+                    #addr_code
+
+                    let scanner = move |vec: &mut Vec<#name>, mem: &dyn memscanner::MemReader| -> Result<(), failure::Error> {
+                        // This requires that the type implement Default.
+                     //   vec.resize_default(array_config.element_count);
+
+                      //  for i in 0..array_config.element.count {
+                       //     let obj: vec.index_mut(i);
+                        //    let base_addr = match array_config.unwrap_or(false) {
+                         //       true => array_base_addr + i as u64 * array_config.element_size,
+                          //      false => mem.read_u64(array_base_addr + i as u64 + 8),
+                           // };
+                           // #read_code
+                       // }
+                        Ok(())
+                    };
+                    Ok(Box::new(scanner))
+                };
+                Ok(Box::new(resolver))
+            }
         }
     };
 
@@ -134,7 +170,7 @@ pub fn scannable_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
     match ctx.check() {
         Ok(_) => match code {
             Some(c) => {
-                //eprintln!("code: {}", c);
+                eprintln!("code: {}", c);
                 proc_macro::TokenStream::from(c)
             }
             None => {
