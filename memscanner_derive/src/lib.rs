@@ -30,6 +30,8 @@ fn get_type(ctx: &mut Context, ty: &Type) -> Option<&'static str> {
                 Some("f32")
             } else if p.path.is_ident("f64") {
                 Some("f64")
+            } else if p.path.is_ident("String") {
+                Some("string")
             } else {
                 ctx.error_spanned_by(
                     ty.clone(),

@@ -11,7 +11,11 @@ mod tests {
         value2: u32,
     }
 
-    // This that should be emitted by the derive macro
+    #[derive(Debug, Default, Scannable)]
+    struct StringTestObject {
+        s: String,
+    }
+
     fn get_test_mem_reader() -> TestMemReader {
         #[rustfmt::skip]
         let r = TestMemReader {
@@ -24,7 +28,45 @@ mod tests {
         };
         r
     }
-    // This that should be emitted by the derive macro
+
+    fn get_string_limit_test_mem_reader() -> TestMemReader {
+        #[rustfmt::skip]
+        let r = TestMemReader {
+            mem: vec![
+                0xff, 0xff, 0xff, 0xff, 0x00, 0x11, 0x22, 0x33,
+                0x04, 0x00, 0x00, 0x00, 0x44, 0x55, 0x66, 0x77,
+                0x4D, 0x65, 0x6D, 0x73, 0x63, 0x61, 0x6E, 0x6E,
+                0x65, 0x72, 0x20, 0x69, 0x73, 0x20, 0x62, 0x65,
+                0x73, 0x74, 0x20, 0x73, 0x63, 0x61, 0x6E, 0x6E,
+                0x65, 0x72, 0x21, 0x20, 0x20, 0x4D, 0x65, 0x6D,
+                0x73, 0x63, 0x61, 0x6E, 0x6E, 0x65, 0x72, 0x20,
+                0x69, 0x73, 0x20, 0x62, 0x65, 0x73, 0x74, 0x20,
+                0x73, 0x63, 0x61, 0x6E, 0x6E, 0x65, 0x72, 0x21,
+            ],
+            start_addr: 0x1000,
+        };
+        r
+    }
+
+    fn get_string_test_mem_reader() -> TestMemReader {
+        #[rustfmt::skip]
+        let r = TestMemReader {
+            mem: vec![
+                0xff, 0xff, 0xff, 0xff, 0x00, 0x11, 0x22, 0x33,
+                0x04, 0x00, 0x00, 0x00, 0x44, 0x55, 0x66, 0x77,
+                0x4D, 0x65, 0x6D, 0x73, 0x63, 0x61, 0x6E, 0x6E,
+                0x65, 0x72, 0x20, 0x69, 0x73, 0x20, 0x62, 0x65,
+                0x73, 0x74, 0x20, 0x73, 0x63, 0x61, 0x6E, 0x6E,
+                0x65, 0x72, 0x21, 0x00, 0x20, 0x4D, 0x65, 0x6D,
+                0x73, 0x63, 0x61, 0x6E, 0x6E, 0x65, 0x72, 0x20,
+                0x69, 0x73, 0x20, 0x62, 0x65, 0x73, 0x74, 0x20,
+                0x73, 0x63, 0x61, 0x6E, 0x6E, 0x65, 0x72, 0x21,
+            ],
+            start_addr: 0x1000,
+        };
+        r
+    }
+
     fn get_array_test_mem_reader() -> TestMemReader {
         #[rustfmt::skip]
         let r = TestMemReader {
@@ -48,6 +90,18 @@ mod tests {
             fields: {
                 value1: 0x0,
                 value2: 0x4,
+            }
+        }"
+        .as_bytes();
+        TypeConfig::new(&mut text).unwrap()
+    }
+
+    fn get_string_test_type_config() -> TypeConfig {
+        let mut text = "
+        {
+            signature: [\"asm(00112233^^^^^^^^********)\"],
+            fields: {
+                s: 0x0,
             }
         }"
         .as_bytes();
@@ -100,6 +154,37 @@ mod tests {
         scanner(&mut obj, &mem)?;
         assert_eq!(obj.value1, 0x88);
         assert_eq!(obj.value2, 0xffeeddcc);
+
+        Ok(())
+    }
+
+    #[test]
+    fn string_test() -> Result<(), Error> {
+        let config = get_string_test_type_config();
+        let mem = get_string_test_mem_reader();
+
+        let resolver = StringTestObject::get_resolver(config)?;
+        let scanner = resolver(&mem, mem.start_addr, mem.start_addr + mem.mem.len() as u64)?;
+
+        let mut obj: StringTestObject = Default::default();
+        scanner(&mut obj, &mem)?;
+        assert_eq!(obj.s, "Memscanner is best scanner!");
+
+        Ok(())
+    }
+
+    #[test]
+    fn string_limit_test() -> Result<(), Error> {
+        let config = get_string_test_type_config();
+        let mem = get_string_limit_test_mem_reader();
+
+        let resolver = StringTestObject::get_resolver(config)?;
+        let scanner = resolver(&mem, mem.start_addr, mem.start_addr + mem.mem.len() as u64)?;
+
+        let mut obj: StringTestObject = Default::default();
+        scanner(&mut obj, &mem)?;
+        assert_eq!(obj.s.len(), 32);
+        assert_eq!(obj.s, "Memscanner is best scanner!  Mem");
 
         Ok(())
     }

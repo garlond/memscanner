@@ -58,6 +58,21 @@ pub trait MemReader {
         Some(val[0])
     }
 
+    fn read_string(&self, addr: u64) -> Option<String> {
+        let string_limit = 32;
+        let mut bytes: Vec<u8> = Vec::new();
+
+        for i in 0..string_limit {
+            let b = self.read_u8(addr + i)?;
+            if b == 0x0 {
+                break;
+            }
+            bytes.push(b);
+        }
+
+        Some(String::from_utf8_lossy(&bytes).to_string())
+    }
+
     read_type_impl!(u16, read_u16);
     read_type_impl!(i16, read_i16);
     read_type_impl!(u32, read_u32);
