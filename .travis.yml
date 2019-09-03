@@ -1,0 +1,14 @@
+language: rust
+rust:
+  - stable
+matrix:
+  fast_finish: true
+  cache: cargo
+script:
+  - cargo build --verbose --all
+  - cargo test --verbose --all
+  - rustup component add rustfmt-preview
+  - cargo fmt --all -- --check
+os:
+  - windows
+  - osx
