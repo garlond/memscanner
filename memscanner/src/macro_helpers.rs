@@ -2,6 +2,9 @@ use super::test::TestMemReader;
 use super::ArrayConfig;
 use super::MemReader;
 use failure::{format_err, Error};
+use num_traits::FromPrimitive;
+
+use std::mem::size_of_val;
 
 pub fn new_mem_cache(config: &ArrayConfig) -> TestMemReader {
     let mut data = Vec::with_capacity(config.element_size as usize);
@@ -38,4 +41,39 @@ pub fn get_array_base_addr(
             .read_u64(base_addr + index as u64 * 8)
             .ok_or(format_err! {"Can't load pointer table index {}", index})?,
     })
+}
+
+pub fn read_enum<T: Sized + Default + FromPrimitive>(
+    e: &mut T,
+    mem: &dyn MemReader,
+    addr: u64,
+) -> Result<(), Error> {
+    match size_of_val(e) {
+        1 => {
+            let v = mem
+                .read_u8(addr)
+                .ok_or(format_err!("Can't read at %0x{:x}", addr))?;
+            *e = T::from_u8(v).unwrap_or(Default::default());
+        }
+        2 => {
+            let v = mem
+                .read_u16(addr)
+                .ok_or(format_err!("Can't read at %0x{:x}", addr))?;
+            *e = T::from_u16(v).unwrap_or(Default::default());
+        }
+        4 => {
+            let v = mem
+                .read_u32(addr)
+                .ok_or(format_err!("Can't read at %0x{:x}", addr))?;
+            *e = T::from_u32(v).unwrap_or(Default::default());
+        }
+        8 => {
+            let v = mem
+                .read_u64(addr)
+                .ok_or(format_err!("Can't read at %0x{:x}", addr))?;
+            *e = T::from_u64(v).unwrap_or(Default::default());
+        }
+        s => return Err(format_err!("Unsupported enums of size {}.", s)),
+    };
+    Ok(())
 }

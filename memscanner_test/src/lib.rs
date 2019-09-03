@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests {
     use memscanner::test::TestMemReader;
-    use memscanner::{Scannable, Signature, TypeConfig};
+    use memscanner::{Scannable, ScannableEnum, Signature, TypeConfig};
 
     use failure::{format_err, Error};
+    use num_derive::FromPrimitive;
 
     #[derive(Debug, Default, Scannable)]
     struct TestObject {
@@ -14,6 +15,25 @@ mod tests {
     #[derive(Debug, Default, Scannable)]
     struct StringTestObject {
         s: String,
+    }
+
+    #[repr(u8)]
+    #[derive(Debug, FromPrimitive, PartialEq, ScannableEnum)]
+    enum TestEnum {
+        Unknown = 0,
+        Value1 = 1,
+        Value88 = 0x88,
+    }
+
+    impl Default for TestEnum {
+        fn default() -> Self {
+            TestEnum::Unknown
+        }
+    }
+
+    #[derive(Debug, Default, Scannable)]
+    struct EnumTestObject {
+        e: TestEnum,
     }
 
     fn get_test_mem_reader() -> TestMemReader {
@@ -102,6 +122,18 @@ mod tests {
             signature: [\"asm(00112233^^^^^^^^********)\"],
             fields: {
                 s: 0x0,
+            }
+        }"
+        .as_bytes();
+        TypeConfig::new(&mut text).unwrap()
+    }
+
+    fn get_enum_test_type_config() -> TypeConfig {
+        let mut text = "
+        {
+            signature: [\"asm(00112233^^^^^^^^********)\"],
+            fields: {
+                e: 0x0,
             }
         }"
         .as_bytes();
@@ -205,6 +237,21 @@ mod tests {
         assert_eq!(obj[0].value2, 0xffeeddcc);
         assert_eq!(obj[1].value1, 0x00);
         assert_eq!(obj[1].value2, 0x77665544);
+
+        Ok(())
+    }
+
+    #[test]
+    fn enum_test() -> Result<(), Error> {
+        let config = get_enum_test_type_config();
+        let mem = get_test_mem_reader();
+
+        let resolver = EnumTestObject::get_resolver(config)?;
+        let scanner = resolver(&mem, mem.start_addr, mem.start_addr + mem.mem.len() as u64)?;
+
+        let mut obj: EnumTestObject = Default::default();
+        scanner(&mut obj, &mem)?;
+        assert_eq!(obj.e, TestEnum::Value88);
 
         Ok(())
     }

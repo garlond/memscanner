@@ -10,6 +10,8 @@ edition = "2018"
 failure = "0.1.5"
 memscanner_derive = { version = "0.1.0", path = "../memscanner_derive" }
 nom = "5.0.0"
+num-traits = "0.2"
+num-derive = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 json5 = "0.2.5"
 syn = "1.0"

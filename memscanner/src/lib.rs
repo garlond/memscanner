@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::Read;
 
-pub use memscanner_derive::Scannable;
+pub use memscanner_derive::{Scannable, ScannableEnum};
 pub use signature::Signature;
 
 macro_rules! read_type_impl {
@@ -159,3 +159,38 @@ where
     /// the `config`.  This `Scannable` will read into a Vec.
     fn get_array_resolver(config: TypeConfig) -> Result<Box<ArrayResolver<Self>>, Error>;
 }
+
+/// A value that can be scanned as a member of a `Scannable` struct.
+pub trait ScannableValue<T> {
+    /// Scans the value at `addr` using `mem` to read its value.
+    fn scan_val(&mut self, mem: &dyn MemReader, addr: u64) -> Result<(), Error>;
+}
+
+// A macro to generate implementations of ScannableValue for types that have
+// direct MemReader readers.
+macro_rules! scannable_value_impl {
+    ($type: ty, $func_name: tt) => {
+        impl ScannableValue<$type> for $type {
+            fn scan_val(&mut self, mem: &dyn MemReader, addr: u64) -> Result<(), Error> {
+                use failure::format_err;
+                *self = mem
+                    .$func_name(addr)
+                    .ok_or(format_err!("can't read value"))?;
+                Ok(())
+            }
+        }
+    };
+}
+
+scannable_value_impl!(String, read_string);
+
+scannable_value_impl!(u8, read_u8);
+scannable_value_impl!(u16, read_u16);
+scannable_value_impl!(i16, read_i16);
+scannable_value_impl!(u32, read_u32);
+scannable_value_impl!(i32, read_i32);
+scannable_value_impl!(u64, read_u64);
+scannable_value_impl!(i64, read_i64);
+
+scannable_value_impl!(f32, read_f32);
+scannable_value_impl!(f64, read_f64);
